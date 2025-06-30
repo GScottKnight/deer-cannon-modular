@@ -2,16 +2,19 @@ import cv2
 from ultralytics import YOLO
 import os
 import subprocess
-from smart_deer_deterrent.shared.math_utils import calculate_iou
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shared.math_utils import calculate_iou
+from shared.model_manager import model_manager
 
 # --- Constants and Model Loading ---
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'deer_model.pt')
+DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'best.pt')
 GENERAL_MODEL_PATH = os.path.join(_script_dir, 'models', 'yolov8n.pt')
 
-# Load the models
-deer_model = YOLO(DEER_MODEL_PATH)
-general_model = YOLO(GENERAL_MODEL_PATH)
+# Use singleton model manager to avoid duplicate loading
+deer_model = model_manager.get_deer_model(DEER_MODEL_PATH)
+general_model = model_manager.get_general_model(GENERAL_MODEL_PATH)
 
 # A set of common animal classes from the COCO dataset for easy lookup
 ANIMAL_CLASSES = {'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'}

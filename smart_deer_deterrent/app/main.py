@@ -5,6 +5,10 @@ import cv2
 from flask import Flask, render_template, request, jsonify, Response, url_for
 from ultralytics import YOLO
 from werkzeug.utils import secure_filename
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shared.model_manager import model_manager
+from shared.math_utils import calculate_iou
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
@@ -15,27 +19,33 @@ UPLOAD_FOLDER = os.path.join(_script_dir, 'uploads')
 STATIC_FOLDER = os.path.join(_script_dir, 'static')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# --- Model Loading ---
-DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'deer_model.pt')
+# --- Model Optimization Settings ---
+MODEL_CONFIG = {
+    'imgsz': 640,  # Input image size (can be reduced to 416 or 320 for faster inference)
+    'device': 'cpu',  # 'cpu', 'cuda', 'mps' (for Mac M1/M2)
+    'half': False,  # Use FP16 precision (only works on CUDA)
+    'max_det': 100,  # Maximum detections per image
+    'conf_threshold': 0.5,  # Confidence threshold
+    'iou_threshold': 0.45,  # IoU threshold for NMS
+    'batch_size': 1,  # Batch size for inference
+    'use_cascaded': True,  # Use cascaded inference approach
+    'frame_skip': 1,  # Process every Nth frame (1 = process all frames)
+}
+
+# --- Model Loading with Optimization ---
+DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'best.pt')
 GENERAL_MODEL_PATH = os.path.join(_script_dir, 'models', 'yolov8n.pt')
-deer_model = YOLO(DEER_MODEL_PATH)
-general_model = YOLO(GENERAL_MODEL_PATH)
+
+# Use singleton model manager to avoid duplicate loading
+deer_model = model_manager.get_deer_model(DEER_MODEL_PATH)
+general_model = model_manager.get_general_model(GENERAL_MODEL_PATH)
 
 # A set of common animal classes from the COCO dataset for easy lookup
 ANIMAL_CLASSES = {'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'}
 
 # --- Utility Functions ---
 
-def calculate_iou(boxA, boxB):
-    xA = max(boxA[0], boxB[0])
-    yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
-    interArea = max(0, xB - xA) * max(0, yB - yA)
-    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
-    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
-    denominator = float(boxAArea + boxBArea - interArea)
-    return 0.0 if denominator == 0 else interArea / denominator
+# IoU calculation now imported from shared.math_utils
 
 def filter_overlapping_detections(detections, iou_threshold=0.5):
     """
@@ -107,24 +117,80 @@ def _draw_bullseye(frame, target):
 
 # --- Core Inference Logic ---
 
-def run_inference_on_frame(frame):
-    deer_results = deer_model(frame, verbose=False)
-    general_results = general_model(frame, verbose=False)
-
-    deer_detections = [
-        {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': deer_model.names[int(b.cls[0])]}
-        for r in deer_results for b in r.boxes if b.conf[0] > 0.5
-    ]
+def run_inference_on_frame(frame, use_cascaded=None, conf_threshold=None):
+    """
+    Run object detection on a frame with optional cascaded inference.
+    
+    Args:
+        frame: Input image frame
+        use_cascaded: If True, only run deer model when animals are detected
+        conf_threshold: Confidence threshold for detections
+    """
+    # Use config values if not specified
+    if use_cascaded is None:
+        use_cascaded = MODEL_CONFIG['use_cascaded']
+    if conf_threshold is None:
+        conf_threshold = MODEL_CONFIG['conf_threshold']
+    
+    # Always run general model first with optimization settings
+    general_results = general_model(
+        frame, 
+        verbose=False,
+        imgsz=MODEL_CONFIG['imgsz'],
+        device=MODEL_CONFIG['device'],
+        half=MODEL_CONFIG['half'],
+        max_det=MODEL_CONFIG['max_det'],
+        conf=conf_threshold,
+        iou=MODEL_CONFIG['iou_threshold']
+    )
     general_detections = [
         {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': general_model.names[int(b.cls[0])]}
-        for r in general_results for b in r.boxes if b.conf[0] > 0.5
+        for r in general_results for b in r.boxes if b.conf[0] > conf_threshold
     ]
-
-    # Filter overlapping detections within the deer model first (less aggressive - only filter true duplicates)
-    deer_detections = filter_overlapping_detections(deer_detections, iou_threshold=0.8)
     
     # Filter overlapping detections within the general model (less aggressive)
     general_detections = filter_overlapping_detections(general_detections, iou_threshold=0.8)
+    
+    # Check if we should run deer model (cascaded approach)
+    deer_detections = []
+    if use_cascaded:
+        # Only run deer model if animals are detected by general model
+        animal_detected = any(d['label'] in ANIMAL_CLASSES or d['label'] == 'deer' for d in general_detections)
+        if animal_detected:
+            deer_results = deer_model(
+                frame, 
+                verbose=False,
+                imgsz=MODEL_CONFIG['imgsz'],
+                device=MODEL_CONFIG['device'],
+                half=MODEL_CONFIG['half'],
+                max_det=MODEL_CONFIG['max_det'],
+                conf=conf_threshold,
+                iou=MODEL_CONFIG['iou_threshold']
+            )
+            deer_detections = [
+                {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': deer_model.names[int(b.cls[0])]}
+                for r in deer_results for b in r.boxes if b.conf[0] > conf_threshold
+            ]
+            # Filter overlapping detections within the deer model first (less aggressive - only filter true duplicates)
+            deer_detections = filter_overlapping_detections(deer_detections, iou_threshold=0.8)
+    else:
+        # Original behavior - always run both models
+        deer_results = deer_model(
+            frame, 
+            verbose=False,
+            imgsz=MODEL_CONFIG['imgsz'],
+            device=MODEL_CONFIG['device'],
+            half=MODEL_CONFIG['half'],
+            max_det=MODEL_CONFIG['max_det'],
+            conf=conf_threshold,
+            iou=MODEL_CONFIG['iou_threshold']
+        )
+        deer_detections = [
+            {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': deer_model.names[int(b.cls[0])]}
+            for r in deer_results for b in r.boxes if b.conf[0] > conf_threshold
+        ]
+        # Filter overlapping detections within the deer model first (less aggressive - only filter true duplicates)
+        deer_detections = filter_overlapping_detections(deer_detections, iou_threshold=0.8)
 
     # Start with filtered deer detections
     final_detections = list(deer_detections)
@@ -184,25 +250,60 @@ def run_inference_video(video_path, output_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         return None, []
-    width, height, fps = int(cap.get(3)), int(cap.get(4)), cap.get(5)
-    command = ['ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{width}x{height}', '-pix_fmt', 'bgr24', '-r', str(fps), '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', output_path]
-    proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    summary = []
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret: break
-        annotated_frame, detections = run_inference_on_frame(frame)
-        if annotated_frame is None: continue
-        summary.extend(detections)
-        try:
-            proc.stdin.write(annotated_frame.tobytes())
-        except (IOError, BrokenPipeError):
-            print(f"ffmpeg error: {proc.stderr.read().decode()}")
-            break
-    cap.release()
-    if proc.stdin:
-        proc.stdin.close()
-    proc.wait()
+    
+    try:
+        width, height, fps = int(cap.get(3)), int(cap.get(4)), cap.get(5)
+        
+        # Optimize ffmpeg command for better performance
+        command = [
+            'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo', 
+            '-s', f'{width}x{height}', '-pix_fmt', 'bgr24', '-r', str(fps), 
+            '-i', '-', '-an', '-vcodec', 'libx264', 
+            '-preset', 'fast',  # Faster encoding
+            '-crf', '23',  # Good quality/size tradeoff
+            '-pix_fmt', 'yuv420p', 
+            output_path
+        ]
+        proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        summary = []
+        frame_count = 0
+        frame_skip = MODEL_CONFIG['frame_skip']
+        last_detections = []
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret: break
+            
+            # Process frame based on frame skip setting
+            if frame_count % frame_skip == 0:
+                # Run inference on this frame
+                annotated_frame, detections = run_inference_on_frame(frame)
+                if annotated_frame is None: continue
+                summary.extend(detections)
+                last_detections = detections
+            else:
+                # Skip inference, use last detections for annotation
+                annotated_frame = frame.copy()
+                for det in last_detections:
+                    label = det['label']
+                    color = (0, 0, 255) if det['label'] == 'deer' else (255, 0, 0)
+                    _draw_bounding_box(annotated_frame, det['box'], label, det['conf'], color)
+            
+            frame_count += 1
+            
+            try:
+                proc.stdin.write(annotated_frame.tobytes())
+            except (IOError, BrokenPipeError):
+                print(f"ffmpeg error: {proc.stderr.read().decode()}")
+                break
+        
+    finally:
+        # Ensure proper cleanup
+        cap.release()
+        if 'proc' in locals() and proc.stdin:
+            proc.stdin.close()
+            proc.wait()
+        
     unique_summary = sorted(list({(d['label'], f"{d['confidence']:.2f}") for d in summary}), key=lambda x: float(x[1]), reverse=True)
     return output_path, [{'label': l, 'confidence': c} for l, c in unique_summary]
 
@@ -217,10 +318,25 @@ def index():
     return render_template('index.html')
 
 def gen_video_feed(camera):
+    frame_count = 0
+    frame_skip = MODEL_CONFIG['frame_skip']
+    last_annotated_frame = None
+    
     while True:
         frame = camera.get_frame()
         if frame is None: break
-        annotated_frame, _ = run_inference_on_frame(frame)
+        
+        # Process frame based on frame skip setting
+        if frame_count % frame_skip == 0:
+            # Run inference on this frame
+            annotated_frame, _ = run_inference_on_frame(frame)
+            last_annotated_frame = annotated_frame
+        else:
+            # Use last annotated frame if available, otherwise use current frame
+            annotated_frame = last_annotated_frame if last_annotated_frame is not None else frame
+        
+        frame_count += 1
+        
         (flag, encodedImage) = cv2.imencode(".jpg", annotated_frame)
         if not flag: continue
         yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(encodedImage) + b'\r\n')
