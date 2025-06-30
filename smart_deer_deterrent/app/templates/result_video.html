@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Video Result</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; margin: 40px; }
+        video { max-width: 90%; border: 2px solid #ddd; margin-top: 20px; }
+        .detections { margin: 20px auto; width: 80%; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Processed Video</h1>
+    <a href="/">Upload Another File</a>
+    <div>
+        <video controls>
+            <source src="{{ video_path }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    {% if detections %}
+    <div class="detections">
+        <h2>Detected Objects</h2>
+        <table>
+            <tr>
+                <th>Object</th>
+                <th>Confidence</th>
+            </tr>
+            {% for detection in detections %}
+            <tr>
+                <td>{{ detection.label }}</td>
+                <td>{{ detection.confidence }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+</body>
+</html> 

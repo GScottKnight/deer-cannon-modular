@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Result</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; text-align: center; }
+        h1 { color: #333; }
+        .container { max-width: 1200px; margin: auto; }
+        .result-image { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px; margin-top: 20px;}
+        a { display: inline-block; margin-top: 20px; text-decoration: none; padding: 10px 20px; background-color: #007BFF; color: white; border-radius: 5px; }
+        .detection-table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        .detection-table th, .detection-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .detection-table th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Detection Result</h1>
+        {% if result_path %}
+            <img src="data:image/jpeg;base64,{{ result_path }}" alt="Detection result" class="result-image">
+        {% else %}
+            <p>Sorry, there was an error processing your request.</p>
+        {% endif %}
+        <br>
+        
+        {% if detections %}
+        <h2>Detections</h2>
+        <table class="detection-table">
+            <thead>
+                <tr>
+                    <th>Object</th>
+                    <th>Confidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for detection in detections %}
+                <tr>
+                    <td>{{ detection.label }}</td>
+                    <td>{{ "%.2f%%"|format(detection.confidence * 100) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <a href="/">Try another file</a>
+    </div>
+</body>
+</html> 

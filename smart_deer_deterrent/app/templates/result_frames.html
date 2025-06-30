@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Frame Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; text-align: center; }
+        h1 { color: #333; }
+        .container { max-width: 1200px; margin: auto; }
+        .result-frame { max-width: 90%; height: auto; border: 1px solid #ddd; border-radius: 5px; margin-top: 20px; margin-bottom: 20px;}
+        a { display: inline-block; margin-top: 20px; text-decoration: none; padding: 10px 20px; background-color: #007BFF; color: white; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Frame Results</h1>
+        <p>Displaying one annotated frame per second of video.</p>
+        
+        {% if frames %}
+            {% for frame_data in frames %}
+                <img src="data:image/jpeg;base64,{{ frame_data }}" alt="Video frame" class="result-frame">
+            {% endfor %}
+        {% else %}
+            <p>Sorry, there was an error processing your video or no frames were extracted.</p>
+        {% endif %}
+        <br>
+        <a href="/">Try another file</a>
+    </div>
+</body>
+</html> 
