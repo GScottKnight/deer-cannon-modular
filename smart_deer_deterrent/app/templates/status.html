@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>System Status - Smart Deer Deterrent</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-card h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #555;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .metric:last-child {
+            border-bottom: none;
+        }
+        .metric-label {
+            color: #666;
+        }
+        .metric-value {
+            font-weight: 500;
+            color: #333;
+        }
+        .status-good { color: #4caf50; }
+        .status-warning { color: #ff9800; }
+        .status-error { color: #f44336; }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4caf50;
+            transition: width 0.3s ease;
+        }
+        .progress-fill.warning { background-color: #ff9800; }
+        .progress-fill.error { background-color: #f44336; }
+        .debug-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+            margin-left: 10px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4caf50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .refresh-timer {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+        }
+        .camera-status {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            background-color: #e0e0e0;
+        }
+        .camera-status.active {
+            background-color: #4caf50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Status Monitor</h1>
+        
+        <div class="debug-toggle">
+            <label>
+                Debug Mode
+                <label class="toggle-switch">
+                    <input type="checkbox" id="debugToggle">
+                    <span class="slider"></span>
+                </label>
+            </label>
+        </div>
+        
+        <div class="status-grid">
+            <!-- System Info -->
+            <div class="status-card">
+                <h2>System Information</h2>
+                <div id="systemInfo">Loading...</div>
+            </div>
+            
+            <!-- CPU & Memory -->
+            <div class="status-card">
+                <h2>Resources</h2>
+                <div id="resources">Loading...</div>
+            </div>
+            
+            <!-- Disk Space -->
+            <div class="status-card">
+                <h2>Storage</h2>
+                <div id="storage">Loading...</div>
+            </div>
+            
+            <!-- Detection Stats -->
+            <div class="status-card">
+                <h2>Detection Statistics</h2>
+                <div id="detectionStats">Loading...</div>
+            </div>
+            
+            <!-- Camera Status -->
+            <div class="status-card">
+                <h2>Cameras</h2>
+                <div id="cameraStatus">Loading...</div>
+            </div>
+            
+            <!-- Process Info -->
+            <div class="status-card">
+                <h2>Application</h2>
+                <div id="processInfo">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="refresh-timer">
+            Auto-refresh in <span id="countdown">10</span> seconds
+            <button onclick="refreshStatus()">Refresh Now</button>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/">Home</a> | 
+            <a href="/logs">View Logs</a> | 
+            <a href="/detections">View Detections</a>
+        </div>
+    </div>
+    
+    <script>
+        let countdown = 10;
+        let countdownInterval;
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function updateSystemInfo(data) {
+            const systemDiv = document.getElementById('systemInfo');
+            systemDiv.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Platform:</span>
+                    <span class="metric-value">${data.platform.system} ${data.platform.release}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Uptime:</span>
+                    <span class="metric-value">${data.uptime}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Python:</span>
+                    <span class="metric-value">${data.platform.python_version}</span>
+                </div>
+            `;
+        }
+        
+        function updateResources(data) {
+            const resourcesDiv = document.getElementById('resources');
+            const cpuClass = data.cpu.percent > 80 ? 'error' : (data.cpu.percent > 60 ? 'warning' : '');
+            const memClass = data.memory.percent > 80 ? 'error' : (data.memory.percent > 60 ? 'warning' : '');
+            
+            resourcesDiv.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">CPU Usage:</span>
+                    <span class="metric-value">${data.cpu.percent}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${cpuClass}" style="width: ${data.cpu.percent}%"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory:</span>
+                    <span class="metric-value">${data.memory.percent}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${memClass}" style="width: ${data.memory.percent}%"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Available:</span>
+                    <span class="metric-value">${formatBytes(data.memory.available)}</span>
+                </div>
+            `;
+        }
+        
+        function updateStorage(system, diskSpace, detectionStats) {
+            const storageDiv = document.getElementById('storage');
+            const diskClass = system.disk.percent > 90 ? 'error' : (system.disk.percent > 80 ? 'warning' : '');
+            const spaceClass = diskSpace.is_sufficient ? 'status-good' : 'status-error';
+            
+            storageDiv.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Disk Usage:</span>
+                    <span class="metric-value">${system.disk.percent}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${diskClass}" style="width: ${system.disk.percent}%"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Free Space:</span>
+                    <span class="metric-value class="${spaceClass}">${diskSpace.free_gb} GB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Detection Videos:</span>
+                    <span class="metric-value">${detectionStats.total_size_mb} MB</span>
+                </div>
+            `;
+        }
+        
+        function updateDetectionStats(stats) {
+            const statsDiv = document.getElementById('detectionStats');
+            let html = `
+                <div class="metric">
+                    <span class="metric-label">Total Detections:</span>
+                    <span class="metric-value">${stats.total_detections}</span>
+                </div>
+            `;
+            
+            if (stats.latest_detection) {
+                const date = new Date(stats.latest_detection.datetime);
+                html += `
+                    <div class="metric">
+                        <span class="metric-label">Latest:</span>
+                        <span class="metric-value">${date.toLocaleString()}</span>
+                    </div>
+                `;
+            }
+            
+            if (Object.keys(stats.detections_by_date).length > 0) {
+                const today = new Date().toISOString().split('T')[0];
+                const todayCount = stats.detections_by_date[today]?.count || 0;
+                html += `
+                    <div class="metric">
+                        <span class="metric-label">Today:</span>
+                        <span class="metric-value">${todayCount} detections</span>
+                    </div>
+                `;
+            }
+            
+            statsDiv.innerHTML = html;
+        }
+        
+        function updateCameraStatus(cameras) {
+            const cameraDiv = document.getElementById('cameraStatus');
+            let html = '<div style="margin: 10px 0;">';
+            
+            for (let i = 0; i < 5; i++) {
+                const isActive = cameras.includes(i);
+                html += `<span class="camera-status ${isActive ? 'active' : ''}">Camera ${i}</span>`;
+            }
+            
+            html += '</div>';
+            html += `
+                <div class="metric">
+                    <span class="metric-label">Active Cameras:</span>
+                    <span class="metric-value">${cameras.length}</span>
+                </div>
+            `;
+            
+            cameraDiv.innerHTML = html;
+        }
+        
+        function updateProcessInfo(process) {
+            const processDiv = document.getElementById('processInfo');
+            const memoryMB = process.memory_info.rss / (1024 * 1024);
+            
+            processDiv.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Process ID:</span>
+                    <span class="metric-value">${process.pid}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory:</span>
+                    <span class="metric-value">${memoryMB.toFixed(1)} MB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Threads:</span>
+                    <span class="metric-value">${process.num_threads}</span>
+                </div>
+            `;
+        }
+        
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                updateSystemInfo(data.system);
+                updateResources(data.system);
+                updateStorage(data.system, data.disk_space, data.detection_stats);
+                updateDetectionStats(data.detection_stats);
+                updateCameraStatus(data.cameras);
+                updateProcessInfo(data.process);
+                
+                // Update debug toggle
+                document.getElementById('debugToggle').checked = data.debug_mode;
+                
+                // Reset countdown
+                countdown = 10;
+            } catch (error) {
+                console.error('Error fetching status:', error);
+            }
+        }
+        
+        // Debug toggle handler
+        document.getElementById('debugToggle').addEventListener('change', async (e) => {
+            const enabled = e.target.checked;
+            try {
+                await fetch('/api/debug', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({enabled})
+                });
+            } catch (error) {
+                console.error('Error toggling debug mode:', error);
+                e.target.checked = !enabled; // Revert on error
+            }
+        });
+        
+        // Countdown timer
+        function updateCountdown() {
+            countdown--;
+            document.getElementById('countdown').textContent = countdown;
+            if (countdown <= 0) {
+                refreshStatus();
+            }
+        }
+        
+        // Initial load and set up refresh
+        refreshStatus();
+        countdownInterval = setInterval(updateCountdown, 1000);
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            clearInterval(countdownInterval);
+        });
+    </script>
+</body>
+</html>

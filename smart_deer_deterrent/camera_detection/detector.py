@@ -41,7 +41,7 @@ def _draw_bullseye(frame, target):
 
 # --- Core Inference Logic ---
 
-def run_inference_on_frame(frame):
+def run_inference_on_frame(frame, conf_threshold=0.1):
     """
     Runs full inference and annotation logic on a single frame.
     - Detects deer and general objects.
@@ -51,17 +51,24 @@ def run_inference_on_frame(frame):
     - Returns the annotated frame and a summary of detections.
     """
     # 1. Get all detections from both models
-    deer_results = deer_model(frame, verbose=False)
-    general_results = general_model(frame, verbose=False)
+    deer_results = deer_model(frame, verbose=False, conf=conf_threshold)
+    general_results = general_model(frame, verbose=False, conf=conf_threshold)
 
-    deer_detections = [
-        {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': deer_model.names[int(b.cls[0])]}
-        for r in deer_results for b in r.boxes if b.conf[0] > 0.5
-    ]
-    general_detections = [
-        {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': general_model.names[int(b.cls[0])]}
-        for r in general_results for b in r.boxes if b.conf[0] > 0.5
-    ]
+    deer_detections = []
+    for r in deer_results:
+        if r.boxes is not None:
+            deer_detections.extend([
+                {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': deer_model.names[int(b.cls[0])]}
+                for b in r.boxes if b.conf[0] > conf_threshold
+            ])
+    
+    general_detections = []
+    for r in general_results:
+        if r.boxes is not None:
+            general_detections.extend([
+                {'box': b.xyxy[0].tolist(), 'conf': float(b.conf[0]), 'cls': int(b.cls[0]), 'label': general_model.names[int(b.cls[0])]}
+                for b in r.boxes if b.conf[0] > conf_threshold
+            ])
 
     # 2. Filter general detections that overlap with deer detections (but always keep people)
     final_detections = list(deer_detections)

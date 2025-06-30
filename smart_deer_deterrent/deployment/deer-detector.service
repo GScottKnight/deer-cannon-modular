@@ -1,0 +1,24 @@
+[Unit]
+Description=Smart Deer Deterrent System
+After=network.target
+
+[Service]
+Type=simple
+User=deer-detector
+Group=deer-detector
+WorkingDirectory=/home/deer-detector/smart_deer_deterrent/app
+Environment="PATH=/home/deer-detector/smart_deer_deterrent/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/deer-detector/smart_deer_deterrent/venv/bin/python main.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/deer-detector/service.log
+StandardError=append:/var/log/deer-detector/service-error.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

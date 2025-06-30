@@ -6,7 +6,16 @@
     <title>Video Result</title>
     <style>
         body { font-family: sans-serif; text-align: center; margin: 40px; }
-        video { max-width: 90%; border: 2px solid #ddd; margin-top: 20px; }
+        video { 
+            width: 90%; 
+            max-width: 1200px; 
+            height: auto;
+            border: 2px solid #ddd; 
+            margin-top: 20px; 
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
         .detections { margin: 20px auto; width: 80%; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
@@ -17,7 +26,7 @@
     <h1>Processed Video</h1>
     <a href="/">Upload Another File</a>
     <div>
-        <video controls>
+        <video controls preload="metadata" width="100%" height="auto">
             <source src="{{ video_path }}" type="video/mp4">
             Your browser does not support the video tag.
         </video>

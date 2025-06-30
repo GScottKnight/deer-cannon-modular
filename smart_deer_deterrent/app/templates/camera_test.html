@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Camera Test - All Cameras</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+        .camera-box { border: 2px solid #ddd; padding: 10px; text-align: center; }
+        img { max-width: 100%; height: auto; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Camera Test - All Available Cameras</h1>
+    <a href="/">Back to Main Page</a>
+    
+    <div class="camera-grid">
+        <div class="camera-box">
+            <h2>Camera 0</h2>
+            <p>1280x720 @ 10 FPS</p>
+            <img src="/video_feed?camera_index=0" alt="Camera 0 Feed" onerror="this.alt='Camera 0 not available'; this.style.border='2px solid red';">
+        </div>
+        
+        <div class="camera-box">
+            <h2>Camera 1</h2>
+            <p>1920x1080 @ 15 FPS</p>
+            <img src="/video_feed?camera_index=1" alt="Camera 1 Feed" onerror="this.alt='Camera 1 not available'; this.style.border='2px solid red';">
+        </div>
+        
+        <div class="camera-box">
+            <h2>Camera 2 (ArduCam?)</h2>
+            <p>1920x1080 @ 30 FPS</p>
+            <img src="/video_feed?camera_index=2" alt="Camera 2 Feed" onerror="this.alt='Camera 2 not available'; this.style.border='2px solid red';">
+        </div>
+    </div>
+    
+    <hr>
+    <h2>Direct Links:</h2>
+    <ul>
+        <li><a href="/video_feed?camera_index=0" target="_blank">Camera 0 Direct Feed</a></li>
+        <li><a href="/video_feed?camera_index=1" target="_blank">Camera 1 Direct Feed</a></li>
+        <li><a href="/video_feed?camera_index=2" target="_blank">Camera 2 Direct Feed</a></li>
+    </ul>
+</body>
+</html>

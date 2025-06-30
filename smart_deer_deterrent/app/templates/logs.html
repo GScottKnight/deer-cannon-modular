@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Log Viewer - Smart Deer Deterrent</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .log-selector {
+            display: flex;
+            gap: 10px;
+        }
+        .log-button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .log-button:hover {
+            background: #f5f5f5;
+        }
+        .log-button.active {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+        }
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: 600px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .log-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        .log-line:hover {
+            background: #2a2a2a;
+        }
+        .log-timestamp {
+            color: #569cd6;
+        }
+        .log-level-INFO {
+            color: #4ec9b0;
+        }
+        .log-level-WARNING {
+            color: #ce9178;
+        }
+        .log-level-ERROR {
+            color: #f44747;
+        }
+        .log-level-DEBUG {
+            color: #808080;
+        }
+        .log-detection {
+            background: #2d3142;
+            border-left: 3px solid #4ec9b0;
+            padding-left: 10px;
+        }
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .filter-input {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        .auto-scroll {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .refresh-button {
+            padding: 8px 16px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .refresh-button:hover {
+            background: #45a049;
+        }
+        .log-stats {
+            margin-left: auto;
+            color: #666;
+            font-size: 12px;
+        }
+        #noLogs {
+            text-align: center;
+            color: #666;
+            padding: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Log Viewer</h1>
+        
+        <div class="controls">
+            <div class="log-selector">
+                <button class="log-button active" data-log="app">Application</button>
+                <button class="log-button" data-log="detection">Detections</button>
+                <button class="log-button" data-log="camera">Camera</button>
+                <button class="log-button" data-log="system">System</button>
+                <button class="log-button" data-log="debug">Debug</button>
+            </div>
+            
+            <div class="filter-controls">
+                <input type="text" class="filter-input" id="filterInput" placeholder="Filter logs...">
+                <select id="levelFilter">
+                    <option value="">All Levels</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+            </div>
+            
+            <div class="auto-scroll">
+                <label>
+                    <input type="checkbox" id="autoScroll" checked> Auto-scroll
+                </label>
+                <button class="refresh-button" onclick="loadLogs()">Refresh</button>
+            </div>
+            
+            <div class="log-stats" id="logStats"></div>
+        </div>
+        
+        <div class="log-container" id="logContainer">
+            <div id="noLogs">Loading logs...</div>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/">Home</a> | 
+            <a href="/status">System Status</a> | 
+            <a href="/detections">View Detections</a>
+        </div>
+    </div>
+    
+    <script>
+        let currentLogType = 'app';
+        let autoScrollEnabled = true;
+        let allLogs = [];
+        
+        // Log type selection
+        document.querySelectorAll('.log-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.log-button').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentLogType = e.target.dataset.log;
+                loadLogs();
+            });
+        });
+        
+        // Auto-scroll toggle
+        document.getElementById('autoScroll').addEventListener('change', (e) => {
+            autoScrollEnabled = e.target.checked;
+        });
+        
+        // Filter handling
+        let filterTimeout;
+        document.getElementById('filterInput').addEventListener('input', (e) => {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(() => filterLogs(), 300);
+        });
+        
+        document.getElementById('levelFilter').addEventListener('change', filterLogs);
+        
+        function parseLogs(logs) {
+            const parsedLogs = [];
+            logs.forEach(line => {
+                // Parse log line format: "YYYY-MM-DD HH:MM:SS - name - LEVEL - message"
+                const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - (\w+) - (\w+) - (.*)$/);
+                if (match) {
+                    parsedLogs.push({
+                        timestamp: match[1],
+                        logger: match[2],
+                        level: match[3],
+                        message: match[4],
+                        raw: line
+                    });
+                } else {
+                    // Handle lines that don't match the pattern (like stack traces)
+                    if (parsedLogs.length > 0) {
+                        parsedLogs[parsedLogs.length - 1].message += '\n' + line;
+                        parsedLogs[parsedLogs.length - 1].raw += '\n' + line;
+                    }
+                }
+            });
+            return parsedLogs;
+        }
+        
+        function formatLogLine(log) {
+            const isDetection = log.message.includes('DETECTION_EVENT') || 
+                              log.message.includes('Detected') ||
+                              log.message.includes('detection');
+            
+            let html = '<div class="log-line';
+            if (isDetection) html += ' log-detection';
+            html += '">';
+            
+            html += `<span class="log-timestamp">${log.timestamp}</span> `;
+            html += `<span class="log-level-${log.level}">[${log.level}]</span> `;
+            html += escapeHtml(log.message);
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function filterLogs() {
+            const filterText = document.getElementById('filterInput').value.toLowerCase();
+            const levelFilter = document.getElementById('levelFilter').value;
+            
+            const filtered = allLogs.filter(log => {
+                const matchesText = !filterText || 
+                    log.raw.toLowerCase().includes(filterText);
+                const matchesLevel = !levelFilter || log.level === levelFilter;
+                return matchesText && matchesLevel;
+            });
+            
+            displayLogs(filtered);
+        }
+        
+        function displayLogs(logs) {
+            const container = document.getElementById('logContainer');
+            
+            if (logs.length === 0) {
+                container.innerHTML = '<div id="noLogs">No logs found</div>';
+                return;
+            }
+            
+            container.innerHTML = logs.map(formatLogLine).join('');
+            
+            // Update stats
+            const stats = {
+                total: logs.length,
+                error: logs.filter(l => l.level === 'ERROR').length,
+                warning: logs.filter(l => l.level === 'WARNING').length
+            };
+            
+            document.getElementById('logStats').textContent = 
+                `${stats.total} entries | ${stats.error} errors | ${stats.warning} warnings`;
+            
+            // Auto-scroll to bottom
+            if (autoScrollEnabled) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+        
+        async function loadLogs() {
+            try {
+                const response = await fetch(`/api/logs/${currentLogType}?lines=500`);
+                const data = await response.json();
+                
+                allLogs = parseLogs(data.content);
+                filterLogs();
+                
+            } catch (error) {
+                console.error('Error loading logs:', error);
+                document.getElementById('logContainer').innerHTML = 
+                    '<div id="noLogs">Error loading logs</div>';
+            }
+        }
+        
+        // Initial load
+        loadLogs();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            if (autoScrollEnabled) {
+                loadLogs();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
