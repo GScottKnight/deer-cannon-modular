@@ -290,9 +290,21 @@ def get_available_cameras():
 class Camera:
     def __init__(self, camera_index=0):
         self.camera_index = camera_index
-        self.video = cv2.VideoCapture(self.camera_index)
+        # Try to open camera with platform-specific backend
+        if sys.platform == "darwin":  # macOS
+            # Try AVFoundation backend first
+            self.video = cv2.VideoCapture(self.camera_index, cv2.CAP_AVFOUNDATION)
+            if not self.video.isOpened():
+                # Fall back to default backend
+                self.video = cv2.VideoCapture(self.camera_index)
+        else:
+            self.video = cv2.VideoCapture(self.camera_index)
+            
         if not self.video.isOpened():
-            raise RuntimeError("Could not start camera.")
+            raise RuntimeError(f"Could not start camera {camera_index}")
+        
+        # Set buffer size to 1 to reduce memory usage and latency
+        self.video.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
         # Enable auto-adjustments for optimal image quality
         self._configure_auto_adjustments()
@@ -877,7 +889,7 @@ def run_inference_on_frame(frame, use_cascaded=None, conf_threshold=None):
     is_live_camera = hasattr(frame, 'camera_index')
     
     if is_live_camera:
-        camera_idx = frame.camera_index
+        camera_idx = getattr(frame, 'camera_index', 0)
         
         # Initialize history if needed
         if camera_idx not in detection_history:
@@ -922,7 +934,7 @@ def run_inference_on_frame(frame, use_cascaded=None, conf_threshold=None):
     # Apply smoothing to the target if found
     if largest_target:
         # Determine camera source for tracking (use camera index for live, 'uploaded' for videos)
-        camera_source = frame.camera_index if hasattr(frame, 'camera_index') else 'uploaded'
+        camera_source = getattr(frame, 'camera_index', 'uploaded')
         largest_target = smooth_target_position(largest_target, camera_source)
 
     annotated_frame = frame.copy()
@@ -932,18 +944,21 @@ def run_inference_on_frame(frame, use_cascaded=None, conf_threshold=None):
         app_logger.debug(f"Drawing {len(final_detections)} detections")
     
     for det in final_detections:
-        label, color = det['label'], (255, 0, 0)
+        label = det['label']
+        
         if person_present:
             if det['label'] == 'person':
-                color = (0, 255, 0)
+                color = (0, 255, 0)  # Green for person
             elif det['label'] == 'deer' or det['label'] in ANIMAL_CLASSES:
                 label = 'Pet'
-                color = (255, 0, 0)
+                color = (255, 0, 0)  # Blue for pets (when person present)
         else:
-            if det['label'] == 'deer':
-                color = (0, 0, 255)
-            elif det['label'] in ANIMAL_CLASSES:
-                color = (255, 0, 0)
+            if det['label'] == 'deer' or det['label'] in ANIMAL_CLASSES:
+                color = (0, 0, 255)  # Red for all animals (when no person)
+            elif det['label'] == 'person':
+                color = (0, 255, 0)  # Green for person
+            else:
+                color = (128, 128, 128)  # Gray for other objects
         
         # Debug: log what we're drawing
         app_logger.debug(f"Drawing {label} at box {det['box'][:2]}...")
@@ -1010,10 +1025,12 @@ def run_inference(image_path):
 def run_inference_video(video_path, output_path, save_detections=True):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
+        app_logger.error(f"Failed to open video: {video_path}")
         return None, [], None, []
     
     try:
         width, height, fps = int(cap.get(3)), int(cap.get(4)), cap.get(5)
+        app_logger.info(f"Processing video: {width}x{height} @ {fps} FPS")
         
         # Simple ffmpeg command
         command = [
@@ -1034,8 +1051,21 @@ def run_inference_video(video_path, output_path, save_detections=True):
             ret, frame = cap.read()
             if not ret: break
             
-            # Run inference on every frame (simple approach)
-            annotated_frame, detections, target_info = run_inference_on_frame(frame)
+            # Skip frames for performance (process every Nth frame)
+            if frame_count % MODEL_CONFIG['frame_skip'] == 0:
+                # Run inference on this frame
+                try:
+                    annotated_frame, detections, target_info = run_inference_on_frame(frame)
+                except Exception as e:
+                    app_logger.error(f"Error processing frame {frame_count}: {str(e)}")
+                    annotated_frame = frame
+                    detections = []
+                    target_info = None
+            else:
+                # Use the frame as-is without inference
+                annotated_frame = frame
+                detections = []
+                target_info = None
             
             # Store turret info for this frame (sample every few frames to reduce data)
             if frame_count % 3 == 0:  # Sample every 3rd frame
@@ -1134,70 +1164,95 @@ def gen_video_feed(camera):
     detection_end_frame = 0
     post_detection_frames = int(buffer_fps * DETECTION_VIDEO_CONFIG['post_detection_seconds'])
     
+    consecutive_errors = 0
+    max_consecutive_errors = 10
+    
     while True:
-        frame = camera.get_frame()
-        if frame is None: break
-        
-        # Process frame based on frame skip setting
-        if frame_count % frame_skip == 0:
-            # Run inference on this frame
-            annotated_frame, detections, target_info = run_inference_on_frame(frame)
-            last_annotated_frame = annotated_frame
+        try:
+            frame = camera.get_frame()
+            if frame is None:
+                consecutive_errors += 1
+                if consecutive_errors > max_consecutive_errors:
+                    camera_logger.error(f"Too many consecutive frame errors, stopping stream")
+                    break
+                time.sleep(0.1)  # Brief pause before retry
+                continue
             
-            # Store current detection state for API access
-            global camera_detections
-            if detections and target_info:
-                camera_detections[camera.camera_index] = {
-                    'timestamp': datetime.now().isoformat(),
-                    'detection': detections[0],  # Primary detection
-                    'target_info': target_info,
-                    'all_detections': detections
-                }
+            consecutive_errors = 0  # Reset error counter on successful frame
+            
+            # Process frame based on frame skip setting
+            if frame_count % frame_skip == 0:
+                # Run inference on this frame
+                try:
+                    annotated_frame, detections, target_info = run_inference_on_frame(frame)
+                    last_annotated_frame = annotated_frame
+                except Exception as e:
+                    app_logger.error(f"Error in inference: {str(e)}")
+                    annotated_frame = frame
+                    detections = []
+                    target_info = None
+            
+                # Store current detection state for API access
+                global camera_detections
+                if detections and target_info:
+                    camera_detections[camera.camera_index] = {
+                        'timestamp': datetime.now().isoformat(),
+                        'detection': detections[0],  # Primary detection
+                        'target_info': target_info,
+                        'all_detections': detections
+                    }
+                else:
+                    camera_detections[camera.camera_index] = {
+                        'timestamp': datetime.now().isoformat(),
+                        'detection': None,
+                        'target_info': None,
+                        'all_detections': []
+                    }
+                
+                # Check for detections to save
+                if DETECTION_VIDEO_CONFIG['save_detections'] and detections and should_save_detection(detections):
+                    if not detection_active:
+                        detection_active = True
+                        camera_logger.info(f"Detection started at frame {frame_count}")
+                    detection_end_frame = frame_count + post_detection_frames
             else:
-                camera_detections[camera.camera_index] = {
-                    'timestamp': datetime.now().isoformat(),
-                    'detection': None,
-                    'target_info': None,
-                    'all_detections': []
-                }
+                # Use last annotated frame if available, otherwise use current frame
+                annotated_frame = last_annotated_frame if last_annotated_frame is not None else frame
+                detections = []  # No new detections on skipped frames
             
-            # Check for detections to save
-            if DETECTION_VIDEO_CONFIG['save_detections'] and detections and should_save_detection(detections):
-                if not detection_active:
-                    detection_active = True
-                    camera_logger.info(f"Detection started at frame {frame_count}")
-                detection_end_frame = frame_count + post_detection_frames
-        else:
-            # Use last annotated frame if available, otherwise use current frame
-            annotated_frame = last_annotated_frame if last_annotated_frame is not None else frame
-            detections = []  # No new detections on skipped frames
-        
-        # Add frame to buffer for potential detection saving
-        if DETECTION_VIDEO_CONFIG['save_detections']:
-            detection_buffer.append((annotated_frame.copy(), detections))
+            # Add frame to buffer for potential detection saving
+            if DETECTION_VIDEO_CONFIG['save_detections']:
+                detection_buffer.append((annotated_frame.copy(), detections))
             
-            # Keep buffer size limited
-            if len(detection_buffer) > max_buffer_frames:
-                detection_buffer.pop(0)
+                # Keep buffer size limited
+                if len(detection_buffer) > max_buffer_frames:
+                    detection_buffer.pop(0)
+                
+                # Save detection video when detection period ends
+                if detection_active and frame_count >= detection_end_frame:
+                    # Save video asynchronously to avoid blocking the stream
+                    import threading
+                    buffer_copy = detection_buffer.copy()
+                    threading.Thread(
+                        target=save_camera_detection_clip, 
+                        args=(buffer_copy, camera.camera_index),
+                        daemon=True
+                    ).start()
+                    detection_active = False
+                    detection_buffer = []  # Clear buffer after saving
+        
+            frame_count += 1
             
-            # Save detection video when detection period ends
-            if detection_active and frame_count >= detection_end_frame:
-                # Save video asynchronously to avoid blocking the stream
-                import threading
-                buffer_copy = detection_buffer.copy()
-                threading.Thread(
-                    target=save_camera_detection_clip, 
-                    args=(buffer_copy, camera.camera_index),
-                    daemon=True
-                ).start()
-                detection_active = False
-                detection_buffer = []  # Clear buffer after saving
-        
-        frame_count += 1
-        
-        (flag, encodedImage) = cv2.imencode(".jpg", annotated_frame)
-        if not flag: continue
-        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(encodedImage) + b'\r\n')
+            (flag, encodedImage) = cv2.imencode(".jpg", annotated_frame)
+            if not flag: continue
+            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(encodedImage) + b'\r\n')
+            
+            # Add small delay to reduce CPU usage (30 FPS max)
+            time.sleep(0.033)
+            
+        except Exception as e:
+            camera_logger.error(f"Error in video feed: {str(e)}")
+            break
 
 def save_camera_detection_clip(buffer, camera_index):
     """Save detection clip from camera buffer."""
@@ -1261,7 +1316,18 @@ def upload_file():
         
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Check file size before saving (limit to 500MB)
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > 500 * 1024 * 1024:  # 500MB limit
+            app_logger.warning(f"File too large: {file_size / 1024 / 1024:.1f} MB")
+            return "File too large. Maximum size is 500MB.", 413
+        
         file.save(filepath)
+        app_logger.info(f"Uploaded file: {filename} ({file_size / 1024 / 1024:.1f} MB)")
 
         if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
             annotated_image, detections, target_info = run_inference(filepath)

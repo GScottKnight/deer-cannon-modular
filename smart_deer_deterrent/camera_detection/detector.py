@@ -118,19 +118,21 @@ def run_inference_on_frame(frame, conf_threshold=None):
     # 4. Draw annotations
     annotated_frame = frame.copy()
     for det in final_detections:
-        label, color = det['label'], (255, 0, 0) # Default to blue for general objects
+        label = det['label']
 
         if person_present:
             if det['label'] == 'person':
-                color = (0, 255, 0)  # Green
+                color = (0, 255, 0)  # Green for person
             elif det['label'] == 'deer' or det['label'] in ANIMAL_CLASSES:
                 label = 'Pet'
-                color = (255, 0, 0)  # Blue
+                color = (255, 0, 0)  # Blue for pets (when person present)
         else: # No person
-            if det['label'] == 'deer':
-                color = (0, 0, 255) # Red
-            elif det['label'] in ANIMAL_CLASSES:
-                 color = (255, 0, 0) # Blue for other animals
+            if det['label'] == 'deer' or det['label'] in ANIMAL_CLASSES:
+                color = (0, 0, 255)  # Red for all animals (when no person)
+            elif det['label'] == 'person':
+                color = (0, 255, 0)  # Green for person
+            else:
+                color = (128, 128, 128)  # Gray for other objects
 
         _draw_bounding_box(annotated_frame, det['box'], label, det['conf'], color)
 
