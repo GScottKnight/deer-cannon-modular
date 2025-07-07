@@ -1,0 +1,45 @@
+{
+  "models": {
+    "deer": {
+      "description": "Specialized deer detection model",
+      "current_version": "best.pt",
+      "path": "camera_detection/models/best.pt",
+      "confidence_threshold": 0.3,
+      "classes": ["deer"],
+      "input_size": 640,
+      "metrics": {
+        "mAP50": null,
+        "mAP50-95": null,
+        "last_updated": null
+      }
+    },
+    "general": {
+      "description": "General object detection model (YOLOv8n)",
+      "current_version": "yolov8n.pt",
+      "path": "camera_detection/models/yolov8n.pt",
+      "confidence_threshold": 0.25,
+      "classes": ["person", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"],
+      "input_size": 640
+    }
+  },
+  "inference_settings": {
+    "device": "auto",
+    "max_detections": 100,
+    "iou_threshold": 0.5,
+    "use_dual_model": true,
+    "safety_mode": true,
+    "target_priority": ["deer", "animals"]
+  },
+  "performance_tuning": {
+    "batch_size": 1,
+    "num_workers": 0,
+    "pin_memory": false,
+    "half_precision": false
+  },
+  "deployment": {
+    "environment": "development",
+    "auto_update": false,
+    "model_source": "/Users/gsknight/Documents/deer detection training",
+    "update_schedule": "manual"
+  }
+}

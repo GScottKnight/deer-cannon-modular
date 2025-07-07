@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deer Deterrent - Mobile</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1a1a1a; 
+            color: #fff;
+        }
+        .header {
+            background: #2a2a2a;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #444;
+        }
+        .video-container {
+            width: 100%;
+            background: #000;
+            margin: 10px 0;
+        }
+        #video-feed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .controls {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .btn {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn.off {
+            background: #666;
+        }
+        .status {
+            padding: 20px;
+            background: #2a2a2a;
+            margin: 10px;
+            border-radius: 8px;
+        }
+        .emergency {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🦌 Deer Deterrent Control</h1>
+        <p>Status: <span id="status">Connected</span></p>
+    </div>
+    
+    <div class="video-container">
+        <img id="video-feed" src="/mobile_video_feed" alt="Camera Feed">
+    </div>
+    
+    <div class="controls">
+        <button class="btn" id="detection-btn" onclick="toggleDetection()">
+            Detection: ON
+        </button>
+        <button class="btn off" id="turret-btn" onclick="toggleTurret()">
+            Turret: OFF
+        </button>
+    </div>
+    
+    <div class="status">
+        <p><strong>Detections Today:</strong> <span id="count">47</span></p>
+        <p><strong>Battery:</strong> <span id="battery">85%</span></p>
+        <p><strong>Storage:</strong> <span id="storage">25%</span></p>
+        <p><strong>Last Detection:</strong> <span id="last">16:58:18</span></p>
+    </div>
+    
+    <button class="emergency" onclick="emergencyStop()">STOP</button>
+    
+    <script>
+        let detectionActive = true;
+        let turretActive = false;
+        
+        function toggleDetection() {
+            detectionActive = !detectionActive;
+            const btn = document.getElementById('detection-btn');
+            btn.textContent = `Detection: ${detectionActive ? 'ON' : 'OFF'}`;
+            btn.className = detectionActive ? 'btn' : 'btn off';
+        }
+        
+        function toggleTurret() {
+            turretActive = !turretActive;
+            const btn = document.getElementById('turret-btn');
+            btn.textContent = `Turret: ${turretActive ? 'ON' : 'OFF'}`;
+            btn.className = turretActive ? 'btn' : 'btn off';
+        }
+        
+        function emergencyStop() {
+            if (confirm('Emergency stop all operations?')) {
+                detectionActive = false;
+                turretActive = false;
+                document.getElementById('detection-btn').textContent = 'Detection: OFF';
+                document.getElementById('detection-btn').className = 'btn off';
+                document.getElementById('turret-btn').textContent = 'Turret: OFF';
+                document.getElementById('turret-btn').className = 'btn off';
+                document.getElementById('status').textContent = 'STOPPED';
+            }
+        }
+        
+        // Simple status updates
+        setInterval(() => {
+            const now = new Date();
+            const time = now.toTimeString().slice(0, 8);
+            if (detectionActive) {
+                document.getElementById('status').textContent = 'Active';
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

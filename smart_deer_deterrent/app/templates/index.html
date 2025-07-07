@@ -9,11 +9,34 @@
         h1 { color: #333; }
         .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
         .upload-form { margin-top: 20px; }
+        .nav-links {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .nav-links a {
+            margin: 0 10px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Smart Automated Deer Deterrent</h1>
+        
+        <div class="nav-links">
+            <a href="/detections">Saved Detections</a> |
+            <a href="/smoothing_test">Turret Smoothing</a> |
+            <a href="/status">System Status</a> |
+            <a href="/logs">View Logs</a>
+        </div>
+        
         <h2>Upload File for Detection</h2>
         <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
             <input type="file" name="file" accept="image/*,video/*" required>
@@ -27,6 +50,10 @@
                 <select name="cameras" id="camera-select">
                     <!-- Options will be populated by JavaScript -->
                 </select>
+                <button id="toggle-turret-btn" style="margin-left: 20px;">Toggle Turret Display</button>
+                <a href="/live_camera" style="margin-left: 20px; text-decoration: none;">
+                    <button type="button">Open Full Camera View</button>
+                </a>
             </div>
             <img id="video-feed-img" src="" width="100%" style="margin-top: 10px;">
         </div>
@@ -36,6 +63,24 @@
         document.addEventListener('DOMContentLoaded', function() {
             const cameraSelect = document.getElementById('camera-select');
             const videoFeedImg = document.getElementById('video-feed-img');
+            const toggleTurretBtn = document.getElementById('toggle-turret-btn');
+
+            // Add turret toggle functionality
+            toggleTurretBtn.addEventListener('click', function() {
+                fetch('/api/turret/toggle_display', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                })
+                .catch(error => {
+                    console.error('Error toggling turret display:', error);
+                });
+            });
 
             // Fetch the list of available cameras from the server
             fetch('/cameras')

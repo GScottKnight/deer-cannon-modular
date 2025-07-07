@@ -1,0 +1,90 @@
+{
+  "generated_at": "2025-07-01T03:54:23.806073Z",
+  "total_count": 4,
+  "storage_account": "deerdetections",
+  "container": "deer-detections",
+  "detections": [
+    {
+      "id": "detection_20250630_180205",
+      "timestamp": "2025-06-30T18:02:05",
+      "date": "2025-06-30",
+      "time": "18:02:05",
+      "video_url": "https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_180205.mp4",
+      "video_size": 10863388,
+      "uploaded_at": "2025-07-01T03:52:07+00:00",
+      "thumbnail_url": "https://deerdetections.blob.core.windows.net/deer-detections/thumbnails/2025-06-30/detection_20250630_180205.jpg",
+      "confidence": 0.6596997976303101,
+      "labels": [
+        "deer",
+        "truck"
+      ],
+      "metadata": {
+        "duration": 6.1,
+        "fps": 10,
+        "detection_count": 62
+      }
+    },
+    {
+      "id": "detection_20250630_161951",
+      "timestamp": "2025-06-30T16:19:51",
+      "date": "2025-06-30",
+      "time": "16:19:51",
+      "video_url": "https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_161951.mp4",
+      "video_size": 3352611,
+      "uploaded_at": "2025-07-01T03:51:27+00:00",
+      "thumbnail_url": "https://deerdetections.blob.core.windows.net/deer-detections/thumbnails/2025-06-30/detection_20250630_161951.jpg",
+      "confidence": 0.6906312108039856,
+      "labels": [
+        "deer",
+        "person",
+        "cat"
+      ],
+      "metadata": {
+        "duration": 6.4,
+        "fps": 10,
+        "detection_count": 47
+      }
+    },
+    {
+      "id": "detection_20250630_111736",
+      "timestamp": "2025-06-30T11:17:36",
+      "date": "2025-06-30",
+      "time": "11:17:36",
+      "video_url": "https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_111736.mp4",
+      "video_size": 10916573,
+      "uploaded_at": "2025-07-01T03:51:23+00:00",
+      "thumbnail_url": "https://deerdetections.blob.core.windows.net/deer-detections/thumbnails/2025-06-30/detection_20250630_111736.jpg",
+      "confidence": 0.629075288772583,
+      "labels": [
+        "deer",
+        "person"
+      ],
+      "metadata": {
+        "duration": 16.4,
+        "fps": 10,
+        "detection_count": 51
+      }
+    },
+    {
+      "id": "detection_20250630_111508",
+      "timestamp": "2025-06-30T11:15:08",
+      "date": "2025-06-30",
+      "time": "11:15:08",
+      "video_url": "https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_111508.mp4",
+      "video_size": 4559345,
+      "uploaded_at": "2025-07-01T03:52:15+00:00",
+      "thumbnail_url": "https://deerdetections.blob.core.windows.net/deer-detections/thumbnails/2025-06-30/detection_20250630_111508.jpg",
+      "confidence": 0.64390629529953,
+      "labels": [
+        "deer",
+        "person",
+        "cat"
+      ],
+      "metadata": {
+        "duration": 6.9,
+        "fps": 10,
+        "detection_count": 18
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Deer Detection Azure Uploader Service
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/smart_deer_deterrent
+Environment="PATH=/path/to/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/path/to/venv/bin/python azure_uploader.py
+Restart=always
+RestartSec=30
+
+# Logging
+StandardOutput=append:/var/log/deer-uploader.log
+StandardError=append:/var/log/deer-uploader.log
+
+[Install]
+WantedBy=multi-user.target

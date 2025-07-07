@@ -15,6 +15,11 @@ imageio-ffmpeg==0.4.8
 # Utilities
 werkzeug==2.3.6
 python-dateutil==2.8.2
+qrcode==7.4.2
 
 # Optional for production
 gunicorn==21.2.0
+
+# Azure storage
+azure-storage-blob==12.19.0
+python-dotenv==1.0.0

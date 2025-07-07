@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test SAS Video</title>
+</head>
+<body>
+    <h1>Testing SAS URL Video</h1>
+    
+    <h2>Video 1 - Direct from Azure with SAS</h2>
+    <video width="640" height="480" controls>
+        <source src="https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_180205.mp4?se=2025-07-31T04%3A36%3A49Z&sp=r&sv=2025-05-05&sr=b&sig=76QnJFH4u/NbCVoAmyJ5oIVRirTjokdoffTzuo8WdmY%3D" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    
+    <h2>Direct Link</h2>
+    <p><a href="https://deerdetections.blob.core.windows.net/deer-detections/videos/2025-06-30/detection_20250630_180205.mp4?se=2025-07-31T04%3A36%3A49Z&sp=r&sv=2025-05-05&sr=b&sig=76QnJFH4u/NbCVoAmyJ5oIVRirTjokdoffTzuo8WdmY%3D" target="_blank">Click to open video in new tab</a></p>
+    
+    <script>
+        const video = document.querySelector('video');
+        video.addEventListener('error', (e) => {
+            console.error('Video error:', e);
+            console.error('Error code:', video.error?.code);
+            console.error('Error message:', video.error?.message);
+        });
+        
+        video.addEventListener('loadstart', () => console.log('Load started'));
+        video.addEventListener('loadedmetadata', () => console.log('Metadata loaded'));
+        video.addEventListener('canplay', () => console.log('Can play'));
+    </script>
+</body>
+</html>

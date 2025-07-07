@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦌 Deer Deterrent Field Control</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1a1a1a; 
+            color: #fff;
+            overflow-x: hidden;
+        }
+        .header {
+            background: #2a2a2a;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            margin-right: 8px;
+        }
+        .battery {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .video-container {
+            width: 100%;
+            background: #000;
+            position: relative;
+        }
+        #video-feed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .btn {
+            border: none;
+            color: white;
+            padding: 18px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        .btn.on {
+            background: #4CAF50;
+        }
+        .btn.off {
+            background: #666;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .btn i {
+            font-size: 20px;
+        }
+        .stats {
+            padding: 15px;
+            background: #2a2a2a;
+            margin: 0 15px 15px;
+            border-radius: 8px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #444;
+        }
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        .stat-value {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+        .emergency {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+            z-index: 1000;
+        }
+        .emergency:active {
+            transform: scale(0.9);
+        }
+        .detections {
+            padding: 15px;
+            background: #2a2a2a;
+            margin: 0 15px 80px;
+            border-radius: 8px;
+        }
+        .detection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #3a3a3a;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .detection-item:hover {
+            background: #4a4a4a;
+        }
+        .detection-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .detection-time {
+            color: #888;
+        }
+        .detection-confidence {
+            color: #4CAF50;
+            font-weight: 500;
+        }
+        .play-icon {
+            color: #4CAF50;
+            font-size: 18px;
+        }
+        .video-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            padding: 20px;
+        }
+        .video-modal-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-player {
+            width: 100%;
+            max-width: 500px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .video-controls {
+            background: #2a2a2a;
+            padding: 15px;
+            text-align: center;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .close-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .loading {
+            color: #4CAF50;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div style="display: flex; align-items: center;">
+            <div class="status-dot"></div>
+            <span>Field Mode</span>
+        </div>
+        <div class="battery">
+            <i class="fas fa-battery-three-quarters"></i>
+            <span>85%</span>
+        </div>
+    </div>
+    
+    <div class="video-container">
+        <img id="video-feed" src="/mobile_video_feed" alt="Camera Feed">
+        <div class="video-overlay">
+            <span>Detection: </span><span id="detection-status">ON</span>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn on" id="detection-btn" onclick="toggleDetection()">
+            <i class="fas fa-eye"></i>
+            <span>Detection ON</span>
+        </button>
+        <button class="btn off" id="turret-btn" onclick="toggleTurret()">
+            <i class="fas fa-crosshairs"></i>
+            <span>Turret OFF</span>
+        </button>
+    </div>
+    
+    <div class="stats">
+        <h3 style="margin-bottom: 10px;">📊 System Stats</h3>
+        <div class="stat-row">
+            <span>Detections Today</span>
+            <span class="stat-value">47</span>
+        </div>
+        <div class="stat-row">
+            <span>Last Detection</span>
+            <span class="stat-value">16:58</span>
+        </div>
+        <div class="stat-row">
+            <span>System Uptime</span>
+            <span class="stat-value" id="uptime">00:00:00</span>
+        </div>
+        <div class="stat-row">
+            <span>Storage Used</span>
+            <span class="stat-value">25%</span>
+        </div>
+    </div>
+    
+    <div class="detections">
+        <h3 style="margin-bottom: 10px;">🎯 Recent Activity</h3>
+        <div id="detection-list">
+            <div class="loading">Loading recent detections...</div>
+        </div>
+    </div>
+    
+    <!-- Video Modal -->
+    <div class="video-modal" id="video-modal">
+        <div class="video-modal-content">
+            <div class="video-player">
+                <video id="detection-video" controls style="width: 100%; height: auto;">
+                    <source src="" type="video/mp4">
+                    Your browser does not support video playback.
+                </video>
+            </div>
+            <div class="video-controls">
+                <h3 id="video-title">Detection Video</h3>
+                <button class="close-btn" onclick="closeVideo()">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <button class="emergency" onclick="emergencyStop()">
+        <i class="fas fa-stop"></i>
+    </button>
+    
+    <script>
+        let detectionActive = true;
+        let turretActive = false;
+        let uptimeSeconds = 0;
+        
+        function toggleDetection() {
+            detectionActive = !detectionActive;
+            const btn = document.getElementById('detection-btn');
+            const status = document.getElementById('detection-status');
+            
+            if (detectionActive) {
+                btn.className = 'btn on';
+                btn.innerHTML = '<i class="fas fa-eye"></i><span>Detection ON</span>';
+                status.textContent = 'ON';
+            } else {
+                btn.className = 'btn off';
+                btn.innerHTML = '<i class="fas fa-eye-slash"></i><span>Detection OFF</span>';
+                status.textContent = 'OFF';
+            }
+        }
+        
+        function toggleTurret() {
+            turretActive = !turretActive;
+            const btn = document.getElementById('turret-btn');
+            
+            if (turretActive) {
+                btn.className = 'btn on';
+                btn.innerHTML = '<i class="fas fa-crosshairs"></i><span>Turret ON</span>';
+            } else {
+                btn.className = 'btn off';
+                btn.innerHTML = '<i class="fas fa-crosshairs"></i><span>Turret OFF</span>';
+            }
+        }
+        
+        function emergencyStop() {
+            if (confirm('🚨 Emergency stop all operations?')) {
+                detectionActive = false;
+                turretActive = false;
+                
+                // Update UI
+                document.getElementById('detection-btn').className = 'btn off';
+                document.getElementById('detection-btn').innerHTML = '<i class="fas fa-eye-slash"></i><span>Detection OFF</span>';
+                document.getElementById('turret-btn').className = 'btn off';
+                document.getElementById('turret-btn').innerHTML = '<i class="fas fa-crosshairs"></i><span>Turret OFF</span>';
+                document.getElementById('detection-status').textContent = 'STOPPED';
+                
+                // Visual feedback
+                document.querySelector('.status-dot').style.background = '#f44336';
+                document.querySelector('.video-overlay').style.background = 'rgba(244, 67, 54, 0.8)';
+            }
+        }
+        
+        // Update uptime counter
+        function updateUptime() {
+            setInterval(() => {
+                uptimeSeconds++;
+                const hours = Math.floor(uptimeSeconds / 3600);
+                const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+                const seconds = uptimeSeconds % 60;
+                document.getElementById('uptime').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+        
+        // Load recent detections
+        function loadRecentDetections() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+            
+            fetch('/api/mobile/recent_detections', { signal: controller.signal })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    return response.json();
+                })
+                .then(data => {
+                    renderDetections(data.detections || []);
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    console.error('Failed to load detections:', error);
+                    document.getElementById('detection-list').innerHTML = 
+                        '<div style="text-align: center; color: #666;">Unable to load recent detections</div>';
+                });
+        }
+        
+        function renderDetections(detections) {
+            const listContainer = document.getElementById('detection-list');
+            
+            if (detections.length === 0) {
+                listContainer.innerHTML = '<div style="text-align: center; color: #666;">No recent detections</div>';
+                return;
+            }
+            
+            listContainer.innerHTML = detections.map(detection => `
+                <div class="detection-item" onclick="playDetection('${detection.video_url}', '${detection.full_time}')">
+                    <div class="detection-info">
+                        <div class="detection-time">${detection.time}</div>
+                        <div class="detection-confidence">${(detection.confidence * 100).toFixed(0)}% confidence</div>
+                    </div>
+                    <i class="fas fa-play play-icon"></i>
+                </div>
+            `).join('');
+        }
+        
+        function playDetection(videoUrl, timestamp) {
+            const modal = document.getElementById('video-modal');
+            const video = document.getElementById('detection-video');
+            const title = document.getElementById('video-title');
+            
+            // Set video source and title
+            video.src = videoUrl;
+            title.textContent = `Detection - ${timestamp}`;
+            
+            // Show modal
+            modal.style.display = 'block';
+            
+            // Play video
+            video.play().catch(error => {
+                console.error('Error playing video:', error);
+                alert('Unable to play video. Please try again.');
+            });
+        }
+        
+        function closeVideo() {
+            const modal = document.getElementById('video-modal');
+            const video = document.getElementById('detection-video');
+            
+            // Stop and hide video
+            video.pause();
+            video.src = '';
+            modal.style.display = 'none';
+        }
+        
+        // Close video modal when clicking outside
+        document.getElementById('video-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVideo();
+            }
+        });
+        
+        // Initialize
+        updateUptime();
+        loadRecentDetections();
+        
+        // Reload detections every 30 seconds
+        setInterval(loadRecentDetections, 30000);
+        
+        // Prevent accidental navigation
+        window.addEventListener('beforeunload', function(e) {
+            if (detectionActive || turretActive) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

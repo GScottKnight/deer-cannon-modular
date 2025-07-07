@@ -3,14 +3,24 @@ from ultralytics import YOLO
 import os
 import subprocess
 import sys
+import logging
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.math_utils import calculate_iou
 from shared.model_manager import model_manager
+from shared.model_config_loader import model_config
 
 # --- Constants and Model Loading ---
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'best.pt')
-GENERAL_MODEL_PATH = os.path.join(_script_dir, 'models', 'yolov8n.pt')
+# Load model paths from configuration
+DEER_MODEL_PATH = model_config.get_model_path('deer')
+GENERAL_MODEL_PATH = model_config.get_model_path('general')
+
+# Fall back to default paths if config not found
+if not DEER_MODEL_PATH:
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    DEER_MODEL_PATH = os.path.join(_script_dir, 'models', 'best.pt')
+if not GENERAL_MODEL_PATH:
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    GENERAL_MODEL_PATH = os.path.join(_script_dir, 'models', 'yolov8n.pt')
 
 # Use singleton model manager to avoid duplicate loading
 deer_model = model_manager.get_deer_model(DEER_MODEL_PATH)
@@ -41,7 +51,7 @@ def _draw_bullseye(frame, target):
 
 # --- Core Inference Logic ---
 
-def run_inference_on_frame(frame, conf_threshold=0.1):
+def run_inference_on_frame(frame, conf_threshold=None):
     """
     Runs full inference and annotation logic on a single frame.
     - Detects deer and general objects.
@@ -50,9 +60,17 @@ def run_inference_on_frame(frame, conf_threshold=0.1):
     - If no person is present, targets the largest animal.
     - Returns the annotated frame and a summary of detections.
     """
+    # Use confidence thresholds from configuration if not specified
+    deer_conf = conf_threshold or model_config.get_confidence_threshold('deer')
+    general_conf = conf_threshold or model_config.get_confidence_threshold('general')
+    
+    # Check if dual model is enabled
+    use_dual_model = model_config.is_dual_model_enabled()
+    safety_mode = model_config.is_safety_mode_enabled()
+    
     # 1. Get all detections from both models
-    deer_results = deer_model(frame, verbose=False, conf=conf_threshold)
-    general_results = general_model(frame, verbose=False, conf=conf_threshold)
+    deer_results = deer_model(frame, verbose=False, conf=deer_conf)
+    general_results = general_model(frame, verbose=False, conf=general_conf) if use_dual_model else []
 
     deer_detections = []
     for r in deer_results:
@@ -83,7 +101,7 @@ def run_inference_on_frame(frame, conf_threshold=0.1):
             final_detections.append(gen_det)
 
     # 3. Apply safety and targeting logic
-    person_present = any(d['label'] == 'person' for d in final_detections)
+    person_present = any(d['label'] == 'person' for d in final_detections) if safety_mode else False
     largest_target = None
 
     if not person_present:
@@ -138,7 +156,7 @@ def run_inference_video(video_path, output_path):
     """Wrapper to process a video file frame by frame."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(f"Error: Could not open video at {video_path}")
+        logging.error(f"Error: Could not open video at {video_path}")
         return None, []
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -168,7 +186,7 @@ def run_inference_video(video_path, output_path):
         try:
             process.stdin.write(annotated_frame.tobytes())
         except (IOError, BrokenPipeError):
-            print(f"ffmpeg process ended unexpectedly. Error: {process.stderr.read().decode()}")
+            logging.error(f"ffmpeg process ended unexpectedly. Error: {process.stderr.read().decode()}")
             break
             
     cap.release()

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Camera Feed - Smart Deer Deterrent</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 { 
+            text-align: center;
+            color: #333;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .controls select, .controls button {
+            padding: 8px 16px;
+            margin: 0 10px;
+            font-size: 16px;
+        }
+        .container { 
+            display: flex; 
+            gap: 20px; 
+            max-width: 1600px; 
+            margin: 0 auto;
+        }
+        .video-section { 
+            flex: 1;
+            min-width: 60%;
+        }
+        .info-section {
+            flex: 0 0 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #video-feed { 
+            width: 100%; 
+            height: auto;
+            border: 2px solid #ddd; 
+            display: block;
+            background-color: #000;
+        }
+        .panel {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .panel h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .turret-calc {
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .turret-calc .section {
+            margin: 15px 0;
+        }
+        .turret-calc .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .turret-calc .value {
+            color: #007bff;
+            margin-left: 10px;
+        }
+        .turret-calc .final {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .turret-calc .status-valid {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .turret-calc .status-invalid {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .center-link {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .no-detection {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+            }
+            .info-section {
+                flex: 1;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Camera Feed</h1>
+    <div class="center-link">
+        <a href="/">Back to Main Page</a>
+    </div>
+    
+    <div class="controls">
+        <label for="camera-select">Camera:</label>
+        <select name="cameras" id="camera-select">
+            <!-- Options will be populated by JavaScript -->
+        </select>
+        <button id="toggle-turret-btn">Toggle Turret Display</button>
+    </div>
+    
+    <div class="container">
+        <div class="video-section">
+            <img id="video-feed" src="" alt="Camera feed">
+        </div>
+        <div class="info-section">
+            <div class="panel">
+                <h2>Detection Status</h2>
+                <div id="detection-status" class="no-detection">
+                    No detections
+                </div>
+            </div>
+            
+            <div class="panel" id="turret-panel" style="display: none;">
+                <h2>Turret Calculations</h2>
+                <div id="turret-info" class="turret-calc">
+                    <div class="no-detection">No target</div>
+                </div>
+            </div>
+            
+            <div class="panel" id="turret-visual-panel" style="display: none;">
+                <h2>Turret Aiming Visualization</h2>
+                <canvas id="turret-canvas" width="360" height="200" style="width: 100%; border: 1px solid #ddd; background: #f0f0f0;"></canvas>
+                <div style="margin-top: 10px; text-align: center; font-size: 12px; color: #666;">
+                    <div>🔵 Camera Direction | 🔴 Turret Aim</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let turretDisplayEnabled = true;
+        let currentCameraIndex = 0;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const cameraSelect = document.getElementById('camera-select');
+            const videoFeed = document.getElementById('video-feed');
+            const toggleTurretBtn = document.getElementById('toggle-turret-btn');
+            const turretPanel = document.getElementById('turret-panel');
+            const detectionStatus = document.getElementById('detection-status');
+            const turretInfo = document.getElementById('turret-info');
+
+            // Fetch turret display state
+            fetch('/api/turret/info')
+                .then(response => response.json())
+                .then(data => {
+                    turretDisplayEnabled = data.show_calculations;
+                    updateTurretPanelVisibility();
+                });
+
+            // Toggle turret display
+            toggleTurretBtn.addEventListener('click', function() {
+                fetch('/api/turret/toggle_display', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    turretDisplayEnabled = data.show_calculations;
+                    updateTurretPanelVisibility();
+                });
+            });
+
+            function updateTurretPanelVisibility() {
+                turretPanel.style.display = turretDisplayEnabled ? 'block' : 'none';
+                document.getElementById('turret-visual-panel').style.display = turretDisplayEnabled ? 'block' : 'none';
+            }
+
+            // Fetch available cameras
+            fetch('/cameras')
+                .then(response => response.json())
+                .then(cameras => {
+                    if (cameras.length > 0) {
+                        cameras.forEach(index => {
+                            const option = document.createElement('option');
+                            option.value = index;
+                            option.textContent = `Camera ${index}`;
+                            cameraSelect.appendChild(option);
+                        });
+                        currentCameraIndex = cameras[0];
+                        videoFeed.src = `/video_feed?camera_index=${currentCameraIndex}`;
+                        startTurretInfoUpdates();
+                    } else {
+                        cameraSelect.innerHTML = '<option>No cameras found</option>';
+                        detectionStatus.innerHTML = '<div class="no-detection">No cameras available</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching cameras:', error);
+                    cameraSelect.innerHTML = '<option>Error loading cameras</option>';
+                });
+
+            // Camera selection change
+            cameraSelect.addEventListener('change', function() {
+                currentCameraIndex = this.value;
+                if (currentCameraIndex) {
+                    videoFeed.src = `/video_feed?camera_index=${currentCameraIndex}`;
+                }
+            });
+
+            // Periodically fetch turret info
+            function startTurretInfoUpdates() {
+                setInterval(updateTurretInfo, 500); // Update every 500ms
+            }
+
+            function drawTurretVisualization(turretData) {
+                const canvas = document.getElementById('turret-canvas');
+                if (!canvas || !turretData) return;
+                
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw grid
+                ctx.strokeStyle = '#ddd';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= width; i += 30) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, height);
+                    ctx.stroke();
+                }
+                for (let i = 0; i <= height; i += 30) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(width, i);
+                    ctx.stroke();
+                }
+                
+                const calc = turretData.calculations;
+                const cameraPan = calc.input.camera_pan_position;
+                const turretPan = calc.final_angles.pan;
+                const turretTilt = calc.final_angles.tilt;
+                
+                // Calculate relative turret angle (difference from camera center)
+                const relativePan = turretPan - cameraPan;
+                
+                // Draw top-down view (left half)
+                const topViewCenterX = width / 4;
+                const topViewCenterY = height / 2;
+                const radius = 60;
+                
+                // Background circle
+                ctx.fillStyle = '#e0e0e0';
+                ctx.beginPath();
+                ctx.arc(topViewCenterX, topViewCenterY, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw angle arc showing the relative pan
+                if (Math.abs(relativePan) > 1) {  // Only draw arc if there's a meaningful angle
+                    ctx.strokeStyle = '#007bff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    if (relativePan > 0) {
+                        // Target is to the right
+                        ctx.arc(topViewCenterX, topViewCenterY, radius - 20, -Math.PI/2, -Math.PI/2 + relativePan * Math.PI / 180);
+                    } else {
+                        // Target is to the left
+                        ctx.arc(topViewCenterX, topViewCenterY, radius - 20, -Math.PI/2 + relativePan * Math.PI / 180, -Math.PI/2);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw camera direction (blue) - always pointing up (0°)
+                ctx.strokeStyle = '#0056b3';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(topViewCenterX, topViewCenterY);
+                ctx.lineTo(topViewCenterX, topViewCenterY - radius);
+                ctx.stroke();
+                
+                // Add camera label
+                ctx.fillStyle = '#0056b3';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('CAM', topViewCenterX, topViewCenterY - radius - 10);
+                
+                // Draw turret direction (red) - relative to camera
+                ctx.strokeStyle = '#dc3545';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(topViewCenterX, topViewCenterY);
+                const turX = topViewCenterX + radius * Math.sin(relativePan * Math.PI / 180);
+                const turY = topViewCenterY - radius * Math.cos(relativePan * Math.PI / 180);
+                ctx.lineTo(turX, turY);
+                ctx.stroke();
+                
+                // Draw center point
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.arc(topViewCenterX, topViewCenterY, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Labels for top view
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Top View (Pan)', topViewCenterX, 20);
+                ctx.fillText(`Relative: ${relativePan > 0 ? '+' : ''}${relativePan.toFixed(1)}°`, topViewCenterX, height - 10);
+                
+                // Add directional indicators
+                ctx.font = '10px Arial';
+                ctx.fillStyle = '#666';
+                ctx.fillText('← LEFT', topViewCenterX - radius - 20, topViewCenterY);
+                ctx.fillText('RIGHT →', topViewCenterX + radius + 20, topViewCenterY);
+                
+                // Draw side view (right half)
+                const sideViewCenterX = 3 * width / 4;
+                const sideViewCenterY = height / 2;
+                
+                // Background circle (full circle for better visualization)
+                ctx.fillStyle = '#e0e0e0';
+                ctx.beginPath();
+                ctx.arc(sideViewCenterX, sideViewCenterY, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw horizon line (0° reference)
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(sideViewCenterX - radius - 10, sideViewCenterY);
+                ctx.lineTo(sideViewCenterX + radius + 10, sideViewCenterY);
+                ctx.stroke();
+                
+                // Add 0° label
+                ctx.fillStyle = '#666';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('0°', sideViewCenterX + radius + 15, sideViewCenterY + 3);
+                
+                // Draw cannon at 0° (blue reference line)
+                ctx.strokeStyle = '#0056b3';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(sideViewCenterX, sideViewCenterY);
+                ctx.lineTo(sideViewCenterX + radius, sideViewCenterY);
+                ctx.stroke();
+                
+                // Draw tilt angle (red for actual aim)
+                ctx.strokeStyle = '#dc3545';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(sideViewCenterX, sideViewCenterY);
+                // For tilt: 0° is horizontal (right), positive is up, negative is down
+                const tiltRad = -turretTilt * Math.PI / 180; // Negative because canvas Y is inverted
+                const tiltX = sideViewCenterX + radius * Math.cos(tiltRad);
+                const tiltY = sideViewCenterY + radius * Math.sin(tiltRad);
+                ctx.lineTo(tiltX, tiltY);
+                ctx.stroke();
+                
+                // Draw tilt arc
+                if (Math.abs(turretTilt) > 1) {  // Only draw arc if there's a meaningful angle
+                    ctx.strokeStyle = '#007bff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    if (turretTilt > 0) {
+                        // Positive tilt (aiming up)
+                        ctx.arc(sideViewCenterX, sideViewCenterY, radius - 20, 0, -tiltRad);
+                    } else {
+                        // Negative tilt (aiming down)
+                        ctx.arc(sideViewCenterX, sideViewCenterY, radius - 20, -tiltRad, 0);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw center point
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.arc(sideViewCenterX, sideViewCenterY, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Labels for side view
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Side View (Tilt)', sideViewCenterX, 20);
+                ctx.fillText(`Tilt: ${turretTilt > 0 ? '+' : ''}${turretTilt.toFixed(1)}°`, sideViewCenterX, height - 10);
+                
+                // Add directional indicators
+                ctx.font = '10px Arial';
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'center';
+                ctx.fillText('↑ UP', sideViewCenterX, topViewCenterY - radius - 10);
+                ctx.fillText('↓ DOWN', sideViewCenterX, topViewCenterY + radius + 20);
+                
+                // Draw validity indicator
+                if (!calc.final_angles.is_valid) {
+                    ctx.fillStyle = 'rgba(220, 53, 69, 0.2)';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.fillStyle = '#dc3545';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('⚠️ OUTSIDE LIMITS', width / 2, height / 2 + 60);
+                }
+            }
+            
+            function updateTurretInfo() {
+                fetch(`/api/turret/camera_info?camera_index=${currentCameraIndex}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_detection) {
+                            detectionStatus.innerHTML = `
+                                <div style="color: #28a745; font-weight: bold;">
+                                    Target Detected: ${data.detection_class}
+                                </div>
+                                <div>Confidence: ${(data.confidence * 100).toFixed(1)}%</div>
+                            `;
+                            
+                            if (turretDisplayEnabled && data.turret_info) {
+                                const info = data.turret_info;
+                                turretInfo.innerHTML = `
+                                    <div class="section">
+                                        <div><span class="label">Target Pixel:</span> 
+                                            <span class="value">(${Math.round(info.center[0])}, ${Math.round(info.center[1])})</span>
+                                        </div>
+                                        <div><span class="label">Camera Pan:</span> 
+                                            <span class="value">${info.calculations.input.camera_pan_position}°</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="section">
+                                        <div class="label">Camera-Relative Angles:</div>
+                                        <div>Pan: <span class="value">${info.calculations.camera_relative.pan.toFixed(2)}°</span></div>
+                                        <div>Tilt: <span class="value">${info.calculations.camera_relative.tilt.toFixed(2)}°</span></div>
+                                    </div>
+                                    
+                                    <div class="section">
+                                        <div class="label">World Angles:</div>
+                                        <div>Pan: <span class="value">${info.calculations.world_angles.pan.toFixed(2)}°</span></div>
+                                        <div>Tilt: <span class="value">${info.calculations.world_angles.tilt.toFixed(2)}°</span></div>
+                                    </div>
+                                    
+                                    <div class="final">
+                                        <div class="label">Turret Command:</div>
+                                        <div>Pan: <span class="value">${info.calculations.final_angles.pan.toFixed(2)}°</span></div>
+                                        <div>Tilt: <span class="value">${info.calculations.final_angles.tilt.toFixed(2)}°</span></div>
+                                        <div style="margin-top: 10px;">
+                                            ${info.calculations.final_angles.is_valid 
+                                                ? '<span class="status-valid">✓ Within Limits</span>'
+                                                : '<span class="status-invalid">✗ Outside Limits</span>'
+                                            }
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Draw visualization
+                                drawTurretVisualization(info);
+                            }
+                        } else {
+                            detectionStatus.innerHTML = '<div class="no-detection">No detections</div>';
+                            turretInfo.innerHTML = '<div class="no-detection">No target</div>';
+                            // Clear visualization
+                            const canvas = document.getElementById('turret-canvas');
+                            if (canvas) {
+                                const ctx = canvas.getContext('2d');
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.fillStyle = '#999';
+                                ctx.font = '16px Arial';
+                                ctx.textAlign = 'center';
+                                ctx.fillText('No Target', canvas.width / 2, canvas.height / 2);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching turret info:', error);
+                    });
+            }
+
+            updateTurretPanelVisibility();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turret Smoothing Test - Smart Deer Deterrent</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 { 
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .control-group {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .control-group h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .slider-container {
+            margin: 15px 0;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .value-display {
+            color: #007bff;
+            font-family: monospace;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.secondary {
+            background: #6c757d;
+        }
+        button.secondary:hover {
+            background: #545b62;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .preset-buttons {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .info-box {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .info-box h4 {
+            margin-top: 0;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .corner-status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .corner-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .corner-item {
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .corner-item.stable {
+            background: #d4edda;
+            color: #155724;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Turret Smoothing Control Panel</h1>
+    
+    <div class="container">
+        <div class="info-box">
+            <h4>Instructions:</h4>
+            <p>Use this panel while watching a video with jittery detection boxes. Adjust the parameters in real-time to find the optimal smoothing settings for your servo system.</p>
+            <ul>
+                <li><strong>Lower alpha values</strong> = More smoothing (slower response)</li>
+                <li><strong>Higher deadband</strong> = Ignore smaller movements</li>
+                <li><strong>Lower max velocity</strong> = Limit servo speed</li>
+            </ul>
+        </div>
+
+        <div class="preset-buttons">
+            <h3>Quick Presets:</h3>
+            <button onclick="applyPreset('minimal')">Minimal Smoothing</button>
+            <button onclick="applyPreset('moderate')">Moderate Smoothing</button>
+            <button onclick="applyPreset('heavy')">Heavy Smoothing</button>
+            <button onclick="applyPreset('stationary')">Stationary Target</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Position Smoothing</h3>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Position Alpha:</span>
+                    <span class="value-display" id="position-alpha-value">0.10</span>
+                </div>
+                <input type="range" id="position-alpha" min="0.01" max="1.0" step="0.01" value="0.10">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Position Deadband (pixels):</span>
+                    <span class="value-display" id="position-deadband-value">15.0</span>
+                </div>
+                <input type="range" id="position-deadband" min="0" max="50" step="1" value="15">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Angle Smoothing</h3>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Angle Alpha:</span>
+                    <span class="value-display" id="angle-alpha-value">0.05</span>
+                </div>
+                <input type="range" id="angle-alpha" min="0.01" max="1.0" step="0.01" value="0.05">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Angle Deadband (degrees):</span>
+                    <span class="value-display" id="angle-deadband-value">1.5</span>
+                </div>
+                <input type="range" id="angle-deadband" min="0" max="5" step="0.1" value="1.5">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Velocity Control</h3>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Max Velocity (deg/sec):</span>
+                    <span class="value-display" id="max-velocity-value">45.0</span>
+                </div>
+                <input type="range" id="max-velocity" min="10" max="180" step="5" value="45">
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="updateSmoothing()">Apply Changes</button>
+            <button class="secondary" onclick="resetSmoothing()">Reset Filter</button>
+            <button class="secondary" onclick="getCurrentSettings()">Refresh Current</button>
+        </div>
+
+        <div id="status-message" class="status" style="display: none;"></div>
+        
+        <div class="control-group">
+            <h3>Corner Tracking Status</h3>
+            <div class="corner-status">
+                <p><strong>Current Strategy:</strong> <span id="tracking-strategy">Using corner-based tracking</span></p>
+                <div class="corner-grid">
+                    <div class="corner-item" id="corner-top-left">
+                        Top Left<br>
+                        <small>Score: <span class="score">-</span></small>
+                    </div>
+                    <div class="corner-item" id="corner-top-right">
+                        Top Right<br>
+                        <small>Score: <span class="score">-</span></small>
+                    </div>
+                    <div class="corner-item" id="corner-bottom-left">
+                        Bottom Left<br>
+                        <small>Score: <span class="score">-</span></small>
+                    </div>
+                    <div class="corner-item" id="corner-bottom-right">
+                        Bottom Right<br>
+                        <small>Score: <span class="score">-</span></small>
+                    </div>
+                </div>
+                <p><strong>Most Stable:</strong> <span id="most-stable-corner">-</span></p>
+                <p><small>Lower scores indicate more stable corners. Green highlights stable corners.</small></p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/">Back to Main Page</a> | 
+            <a href="/live_camera">Live Camera View</a>
+        </div>
+    </div>
+
+    <script>
+        // Update value displays when sliders change
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', function() {
+                const valueDisplay = document.getElementById(this.id + '-value');
+                valueDisplay.textContent = parseFloat(this.value).toFixed(2);
+            });
+        });
+
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function updateSmoothing() {
+            const data = {
+                position_alpha: parseFloat(document.getElementById('position-alpha').value),
+                angle_alpha: parseFloat(document.getElementById('angle-alpha').value),
+                position_deadband: parseFloat(document.getElementById('position-deadband').value),
+                angle_deadband: parseFloat(document.getElementById('angle-deadband').value),
+                max_velocity: parseFloat(document.getElementById('max-velocity').value)
+            };
+
+            fetch('/api/turret/smoothing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('Smoothing parameters updated successfully!');
+                } else {
+                    showStatus('Error: ' + (data.error || 'Unknown error'), true);
+                }
+            })
+            .catch(error => {
+                showStatus('Error: ' + error, true);
+            });
+        }
+
+        function resetSmoothing() {
+            fetch('/api/turret/smoothing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reset: true })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showStatus('Smoothing filter reset!');
+                getCurrentSettings();
+            })
+            .catch(error => {
+                showStatus('Error: ' + error, true);
+            });
+        }
+
+        function getCurrentSettings() {
+            fetch('/api/turret/smoothing')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.enabled) {
+                        document.getElementById('position-alpha').value = data.position_alpha;
+                        document.getElementById('angle-alpha').value = data.angle_alpha;
+                        document.getElementById('position-deadband').value = data.position_deadband;
+                        document.getElementById('angle-deadband').value = data.angle_deadband;
+                        document.getElementById('max-velocity').value = data.max_velocity;
+                        
+                        // Update displays
+                        document.querySelectorAll('input[type="range"]').forEach(slider => {
+                            const valueDisplay = document.getElementById(slider.id + '-value');
+                            valueDisplay.textContent = parseFloat(slider.value).toFixed(2);
+                        });
+                        
+                        showStatus('Settings refreshed from server');
+                    }
+                })
+                .catch(error => {
+                    showStatus('Error fetching settings: ' + error, true);
+                });
+        }
+
+        function applyPreset(preset) {
+            let settings = {};
+            
+            switch(preset) {
+                case 'minimal':
+                    settings = {
+                        position_alpha: 0.5,
+                        angle_alpha: 0.4,
+                        position_deadband: 5,
+                        angle_deadband: 0.5,
+                        max_velocity: 90
+                    };
+                    break;
+                case 'moderate':
+                    settings = {
+                        position_alpha: 0.2,
+                        angle_alpha: 0.15,
+                        position_deadband: 10,
+                        angle_deadband: 1.0,
+                        max_velocity: 60
+                    };
+                    break;
+                case 'heavy':
+                    settings = {
+                        position_alpha: 0.1,
+                        angle_alpha: 0.05,
+                        position_deadband: 15,
+                        angle_deadband: 1.5,
+                        max_velocity: 45
+                    };
+                    break;
+                case 'stationary':
+                    settings = {
+                        position_alpha: 0.02,
+                        angle_alpha: 0.02,
+                        position_deadband: 25,
+                        angle_deadband: 2.5,
+                        max_velocity: 30
+                    };
+                    break;
+            }
+            
+            // Apply preset values to sliders
+            Object.keys(settings).forEach(key => {
+                const slider = document.getElementById(key.replace('_', '-'));
+                if (slider) {
+                    slider.value = settings[key];
+                    const valueDisplay = document.getElementById(slider.id + '-value');
+                    valueDisplay.textContent = parseFloat(settings[key]).toFixed(2);
+                }
+            });
+            
+            showStatus(`Applied ${preset} smoothing preset`);
+        }
+
+        // Function to update corner tracking status
+        function updateCornerStatus() {
+            fetch('/api/turret/info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.corner_tracking) {
+                        const tracking = data.corner_tracking;
+                        
+                        // Update corner scores and highlight stable ones
+                        const corners = ['TOP_LEFT', 'TOP_RIGHT', 'BOTTOM_LEFT', 'BOTTOM_RIGHT'];
+                        const cornerIds = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+                        
+                        corners.forEach((corner, idx) => {
+                            const element = document.getElementById('corner-' + cornerIds[idx]);
+                            const scoreSpan = element.querySelector('.score');
+                            const score = tracking.stability_scores[corner];
+                            
+                            scoreSpan.textContent = score < 1000 ? score.toFixed(1) : '-';
+                            
+                            // Highlight stable corners
+                            if (tracking.stable_corners.includes(corner)) {
+                                element.classList.add('stable');
+                            } else {
+                                element.classList.remove('stable');
+                            }
+                        });
+                        
+                        // Update most stable corner
+                        document.getElementById('most-stable-corner').textContent = 
+                            tracking.most_stable || 'None';
+                        
+                        // Update tracking strategy
+                        if (tracking.stable_corners.length > 0) {
+                            document.getElementById('tracking-strategy').textContent = 
+                                `Aiming at stable region (${tracking.stable_corners.length} stable corners)`;
+                        } else {
+                            document.getElementById('tracking-strategy').textContent = 
+                                'Using center point (no stable corners detected)';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching corner status:', error);
+                });
+        }
+        
+        // Load current settings on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            getCurrentSettings();
+            // Update corner status every second
+            setInterval(updateCornerStatus, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -189,6 +189,7 @@ config.ini
 secrets.yaml
 secrets.json
 credentials.json
+.env
 
 # Virtual environment
 venv/
@@ -209,3 +210,8 @@ htmlcov/
 docs/_build/
 docs/_static/
 docs/_templates/
+
+# Detection data and logs
+smart_deer_deterrent/app/detections/
+smart_deer_deterrent/app/logs/
+upload_queue.db

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif;
+            background: #1a1a1a; 
+            color: #fff;
+            padding: 20px;
+        }
+        .btn {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            display: block;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>🦌 Mobile Test Page</h1>
+    <p>If you can see this, the basic mobile interface works.</p>
+    
+    <button class="btn">Detection: ON</button>
+    <button class="btn">Turret: OFF</button>
+    <button class="btn">Emergency STOP</button>
+    
+    <p><strong>Status:</strong> Connected</p>
+    <p><strong>Time:</strong> <span id="time"></span></p>
+    
+    <script>
+        // Update time every second
+        setInterval(() => {
+            document.getElementById('time').textContent = new Date().toLocaleTimeString();
+        }, 1000);
+    </script>
+</body>
+</html>
